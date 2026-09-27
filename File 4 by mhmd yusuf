@@ -1,0 +1,110 @@
+#character fall matrix wallpaper#
+
+import pygame
+import random
+import win32gui
+import win32con
+import sys
+
+# ----------------- CONFIGURATION ----------------- #
+FONT_SIZE = 22
+FPS = 60
+FADE_SPEED = 25       # Trail length (10 to 40)
+RAINBOW_SPEED = 0.8   # Speed of the rainbow cycle
+# ------------------------------------------------- #
+
+def get_desktop_workerw():
+    """Finds the WorkerW window behind desktop icons."""
+    progman = win32gui.FindWindow("Progman", None)
+    win32gui.SendMessageTimeout(progman, 0x052C, 0, 0, win32con.SMTO_NORMAL, 1000)
+
+    workerw = None
+    def enum_windows_callback(hwnd, extra):
+        nonlocal workerw
+        shelldll = win32gui.FindWindowEx(hwnd, 0, "SHELLDLL_DefView", None)
+        if shelldll:
+            workerw = win32gui.FindWindowEx(0, hwnd, "WorkerW", None)
+        return True
+
+    win32gui.EnumWindows(enum_windows_callback, None)
+    return workerw
+
+def main():
+    pygame.init()
+
+    # Get monitor resolution
+    info = pygame.display.Info()
+    WIDTH, HEIGHT = info.current_w, info.current_h
+
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
+    pygame.display.set_caption("Matrix Wallpaper")
+
+    # Embed window behind desktop icons
+    hwnd = pygame.display.get_wm_info()['window']
+    workerw = get_desktop_workerw()
+    if workerw:
+        win32gui.SetParent(hwnd, workerw)
+
+    clock = pygame.time.Clock()
+
+    # Characters: Japanese Katakana + Numbers + Hex
+    chars = [chr(i) for i in range(0x30A0, 0x30FF)] + [str(i) for i in range(10)] + ['A', 'B', 'C', 'D', 'E', 'F']
+    font = pygame.font.SysFont("ms mincho", FONT_SIZE, bold=True)
+
+    columns = WIDTH // FONT_SIZE
+    drops = [random.randint(-50, 0) for _ in range(columns)]
+    speeds = [random.uniform(0.6, 1.4) for _ in range(columns)]
+
+    fade_surface = pygame.Surface((WIDTH, HEIGHT))
+    fade_surface.set_alpha(FADE_SPEED)
+    fade_surface.fill((0, 0, 0))
+
+    hue_offset = 0
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            # ESC key stops the wallpaper
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                running = False
+            elif event.type == pygame.QUIT:
+                running = False
+
+        # Apply trailing fade effect
+        screen.blit(fade_surface, (0, 0))
+
+        hue_offset = (hue_offset + RAINBOW_SPEED) % 360
+
+        for i in range(len(drops)):
+            char = random.choice(chars)
+            x = i * FONT_SIZE
+            y = int(drops[i] * FONT_SIZE)
+
+            # Rainbow color calculations
+            stream_hue = (hue_offset + (i * 4)) % 360
+            color = pygame.Color(0)
+            color.hsva = (stream_hue, 100, 100, 100)
+
+            # Leading character is pure white
+            head_surf = font.render(char, True, (255, 255, 255))
+            screen.blit(head_surf, (x, y))
+
+            # Trail character gets the rainbow color
+            body_surf = font.render(char, True, color)
+            screen.blit(body_surf, (x, y - FONT_SIZE))
+
+            drops[i] += speeds[i]
+
+            # Loop back to top with random delay
+            if drops[i] * FONT_SIZE > HEIGHT and random.random() > 0.975:
+                drops[i] = random.randint(-10, 0)
+                speeds[i] = random.uniform(0.6, 1.4)
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    pygame.quit()
+    sys.exit()
+
+if __name__ == "__main__":
+    main()
